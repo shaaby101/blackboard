@@ -198,6 +198,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
         <span>Clear</span>
       </button>
+      <button class="small-btn" id="fullscreenBtn" title="Toggle fullscreen">
+        <svg id="fsExpandIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        <svg id="fsCollapseIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M9 3v3a2 2 0 0 1-2 2H4"/><path d="M15 3v3a2 2 0 0 0 2 2h3"/><path d="M9 21v-3a2 2 0 0 0-2-2H4"/><path d="M15 21v-3a2 2 0 0 1 2-2h3"/></svg>
+        <span>Fullscreen</span>
+      </button>
     </div>
   </div>
 
@@ -561,6 +566,29 @@
   document.getElementById('clearBtn').addEventListener('click', () => {
     state.strokes = [];
     redrawAll();
+  });
+
+  const fullscreenBtn = document.getElementById('fullscreenBtn');
+  const fsExpandIcon = document.getElementById('fsExpandIcon');
+  const fsCollapseIcon = document.getElementById('fsCollapseIcon');
+
+  function updateFsIcon(){
+    const isFs = !!document.fullscreenElement;
+    fsExpandIcon.style.display = isFs ? 'none' : '';
+    fsCollapseIcon.style.display = isFs ? '' : 'none';
+  }
+
+  fullscreenBtn.addEventListener('click', () => {
+    if(!document.fullscreenElement){
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    updateFsIcon();
+    resizeCanvas();
   });
 
   window.addEventListener('keydown', (e) => {

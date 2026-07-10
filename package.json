@@ -1,0 +1,10 @@
+{
+  "name": "blackboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A minimalist virtual blackboard with a chalk pen that snaps rough shapes into clean lines, rectangles, circles, and triangles.",
+  "scripts": {
+    "dev": "npx serve .",
+    "start": "npx serve ."
+  }
+}
