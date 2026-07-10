@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Blackboard</title>
+<style>
+  :root{
+    --board: #000000;
+    --ink: #ffffff;
+    --chalk-white: #ffffff;
+    --chalk-yellow: #f2d675;
+    --chalk-coral: #e2896f;
+    --chalk-sky: #7fb3d5;
+    --chalk-sage: #93b990;
+    --chalk-pink: #d99bc0;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background: #000000;
+    font-family: 'Helvetica Neue', Arial, ui-sans-serif, sans-serif;
+    color: var(--ink);
+    -webkit-tap-highlight-color: transparent;
+  }
+  #app{
+    display:flex; flex-direction:column; height:100%;
+    padding: 0;
+    background: #000000;
+  }
+
+  /* ---------- toolbar ---------- */
+  #toolbar{
+    display:flex; align-items:center; gap:0;
+    flex-wrap:wrap;
+    padding:0;
+    margin:0;
+    background: #000000;
+    border-bottom: 2px solid #ffffff;
+  }
+  .group{ display:flex; align-items:center; gap:0; padding:0; border-right:1px solid #ffffff; }
+  .divider{ display:none; }
+
+  .title{
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin: 0;
+    padding: 0 16px;
+    white-space:nowrap;
+    border-right: 1px solid #ffffff;
+    height: 44px;
+    display:flex; align-items:center;
+  }
+
+  button.tool{
+    width:44px; height:44px;
+    display:flex; align-items:center; justify-content:center;
+    background: #000000;
+    border: none;
+    border-right: 1px solid #ffffff;
+    border-radius: 0;
+    color: var(--ink);
+    cursor:pointer;
+    transition: none;
+  }
+  button.tool svg{ width:18px; height:18px; }
+  button.tool:hover{ background: #1a1a1a; }
+  button.tool:active{ background: #ffffff; color:#000000; }
+  button.tool.active{
+    background: #ffffff;
+    color: #000000;
+  }
+
+  .swatch{
+    width:16px; height:16px; border-radius:50%;
+    cursor:pointer;
+    border: 1px solid #ffffff;
+    margin: 0 7px;
+  }
+  .swatch.active{ box-shadow: 0 0 0 2px #000000, 0 0 0 3px #ffffff; }
+
+  #widthRange{ width:80px; accent-color: #ffffff; margin: 0 10px; }
+
+  .toggle-label{
+    display:flex; align-items:center; gap:7px;
+    font-size:12px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor:pointer; user-select:none;
+    white-space:nowrap;
+    padding: 0 14px;
+    height: 44px;
+  }
+  .toggle-label input{ accent-color: #ffffff; width:14px; height:14px; cursor:pointer;}
+
+  .small-btn{
+    background: #000000;
+    border: none;
+    border-right: 1px solid #ffffff;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 0 16px;
+    height: 44px;
+    border-radius: 0;
+    cursor:pointer;
+    display:flex; align-items:center; gap:7px;
+  }
+  .small-btn:hover{ background: #1a1a1a; }
+  .small-btn:active{ background:#ffffff; color:#000000; }
+  .small-btn svg{ width:14px; height:14px; }
+
+  /* ---------- board ---------- */
+  #boardWrap{
+    position:relative;
+    flex:1;
+    overflow:hidden;
+    background: var(--board);
+  }
+  canvas{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    touch-action:none;
+    cursor: crosshair;
+  }
+
+  @media (max-width: 720px){
+    .title{ display:none; }
+    button.tool{ width:38px; height:38px; }
+    .small-btn span{ display:none; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="toolbar">
+    <div class="title">Blackboard</div>
+
+    <div class="group" id="toolGroup">
+      <button class="tool active" data-tool="pen" title="Chalk pen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      </button>
+      <button class="tool" data-tool="line" title="Straight line">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="20" x2="20" y2="4"/></svg>
+      </button>
+      <button class="tool" data-tool="rect" title="Rectangle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="6" width="16" height="12" rx="1"/></svg>
+      </button>
+      <button class="tool" data-tool="ellipse" title="Circle / Ellipse">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="8" ry="6"/></svg>
+      </button>
+      <button class="tool" data-tool="triangle" title="Triangle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 4 L20 19 L4 19 Z"/></svg>
+      </button>
+      <button class="tool" data-tool="eraser" title="Eraser">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 20H8l-6-6a2 2 0 0 1 0-2.8L13.6 2.6a2 2 0 0 1 2.8 0l5.6 5.6a2 2 0 0 1 0 2.8L14 19"/></svg>
+      </button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="group" id="colorGroup">
+      <div class="swatch active" style="background:var(--chalk-white)" data-color="var(--chalk-white)" title="White"></div>
+      <div class="swatch" style="background:var(--chalk-yellow)" data-color="var(--chalk-yellow)" title="Yellow"></div>
+      <div class="swatch" style="background:var(--chalk-coral)" data-color="var(--chalk-coral)" title="Coral"></div>
+      <div class="swatch" style="background:var(--chalk-sky)" data-color="var(--chalk-sky)" title="Sky"></div>
+      <div class="swatch" style="background:var(--chalk-sage)" data-color="var(--chalk-sage)" title="Sage"></div>
+      <div class="swatch" style="background:var(--chalk-pink)" data-color="var(--chalk-pink)" title="Pink"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="group">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="12" x2="20" y2="12"/></svg>
+      <input type="range" id="widthRange" min="2" max="14" value="4">
+    </div>
+
+    <div class="divider"></div>
+
+    <label class="toggle-label" title="Freehand strokes with the pen snap into the closest basic shape">
+      <input type="checkbox" id="snapToggle" checked>
+      Snap chalk to shapes
+    </label>
+
+    <div class="divider"></div>
+
+    <div class="group">
+      <button class="small-btn" id="undoBtn" title="Undo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7"/></svg>
+        <span>Undo</span>
+      </button>
+      <button class="small-btn" id="clearBtn" title="Clear board">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        <span>Clear</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="boardWrap">
+    <canvas id="board"></canvas>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const boardWrap = document.getElementById('boardWrap');
+
+  const state = {
+    tool: 'pen',
+    color: getCss('--chalk-white'),
+    width: 4,
+    snap: true,
+    strokes: [],
+    drawing: false,
+    startPt: null,
+    currentPoints: [],
+  };
+
+  function getCss(varName){
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  }
+  function boardBg(){ return getCss('--board'); }
+
+  // ---------------- canvas sizing ----------------
+  function resizeCanvas(){
+    const dpr = window.devicePixelRatio || 1;
+    const rect = boardWrap.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    redrawAll();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // ---------------- geometry helpers ----------------
+  function dist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
+
+  function pathLength(pts){
+    let d = 0;
+    for(let i = 1; i < pts.length; i++) d += dist(pts[i-1], pts[i]);
+    return d;
+  }
+
+  function boundingBox(pts){
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for(const p of pts){
+      if(p.x < minX) minX = p.x;
+      if(p.y < minY) minY = p.y;
+      if(p.x > maxX) maxX = p.x;
+      if(p.y > maxY) maxY = p.y;
+    }
+    return {minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY};
+  }
+
+  function shoelaceArea(pts){
+    let sum = 0;
+    for(let i = 0; i < pts.length; i++){
+      const p1 = pts[i], p2 = pts[(i+1) % pts.length];
+      sum += (p1.x * p2.y - p2.x * p1.y);
+    }
+    return Math.abs(sum) / 2;
+  }
+
+  function perpendicularDistance(pt, lineStart, lineEnd){
+    const dx = lineEnd.x - lineStart.x, dy = lineEnd.y - lineStart.y;
+    const len = Math.hypot(dx, dy);
+    if(len === 0) return dist(pt, lineStart);
+    const t = ((pt.x - lineStart.x) * dx + (pt.y - lineStart.y) * dy) / (len * len);
+    const projX = lineStart.x + t * dx, projY = lineStart.y + t * dy;
+    return Math.hypot(pt.x - projX, pt.y - projY);
+  }
+
+  function rdp(points, epsilon){
+    if(points.length < 3) return points.slice();
+    let dmax = 0, index = 0;
+    const end = points.length - 1;
+    for(let i = 1; i < end; i++){
+      const d = perpendicularDistance(points[i], points[0], points[end]);
+      if(d > dmax){ dmax = d; index = i; }
+    }
+    if(dmax > epsilon){
+      const left = rdp(points.slice(0, index + 1), epsilon);
+      const right = rdp(points.slice(index), epsilon);
+      return left.slice(0, -1).concat(right);
+    }
+    return [points[0], points[end]];
+  }
+
+  // Try to recognise a rough freehand stroke as a basic shape.
+  // Returns a clean shape-stroke object, or null to keep the freehand stroke.
+  function recognizeShape(rawPoints, color, width){
+    if(rawPoints.length < 6) return null;
+
+    const bbox = boundingBox(rawPoints);
+    const diag = Math.hypot(bbox.w, bbox.h);
+    if(diag < 18) return null; // too small / just a dot or tap
+
+    const first = rawPoints[0], last = rawPoints[rawPoints.length - 1];
+    const closed = dist(first, last) < diag * 0.28;
+
+    if(!closed){
+      // candidate: straight line
+      const simplified = rdp(rawPoints, diag * 0.05);
+      const straightness = pathLength(rawPoints) / diag;
+      if(simplified.length <= 3 && straightness < 1.25){
+        return { type: 'line', p1: first, p2: last, color, width };
+      }
+      return null; // open squiggle, leave freehand
+    }
+
+    // closed shape candidate
+    const area = shoelaceArea(rawPoints);
+    const perimeter = pathLength(rawPoints);
+    if(perimeter === 0) return null;
+    const circularity = (4 * Math.PI * area) / (perimeter * perimeter);
+
+    const corners = rdp(rawPoints, diag * 0.09);
+    // corners[0] and corners[last] are close to each other since shape is closed;
+    // corner count = distinct simplified vertices excluding the closing duplicate
+    let cornerCount = corners.length;
+    if(cornerCount > 1 && dist(corners[0], corners[cornerCount - 1]) < diag * 0.12){
+      cornerCount -= 1;
+    }
+
+    if(circularity > 0.68 && cornerCount >= 5){
+      const cx = (bbox.minX + bbox.maxX) / 2;
+      const cy = (bbox.minY + bbox.maxY) / 2;
+      return { type: 'ellipse', cx, cy, rx: bbox.w / 2, ry: bbox.h / 2, color, width };
+    }
+
+    if(cornerCount === 3){
+      return { type: 'triangle', pts: corners.slice(0, 3), color, width };
+    }
+
+    if(cornerCount === 4 || cornerCount === 5){
+      return { type: 'rect', x: bbox.minX, y: bbox.minY, w: bbox.w, h: bbox.h, color, width };
+    }
+
+    return null; // not confidently a basic shape — keep the freehand chalk stroke
+  }
+
+  // ---------------- rendering ----------------
+  function drawFreehand(c, pts, color, width, chalky){
+    if(pts.length < 2){
+      if(pts.length === 1){
+        c.beginPath();
+        c.fillStyle = color;
+        c.globalAlpha = 0.9;
+        c.arc(pts[0].x, pts[0].y, width / 2, 0, Math.PI * 2);
+        c.fill();
+        c.globalAlpha = 1;
+      }
+      return;
+    }
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+    c.strokeStyle = color;
+    if(!chalky){
+      c.lineWidth = width;
+      c.globalAlpha = 1;
+      c.beginPath();
+      c.moveTo(pts[0].x, pts[0].y);
+      for(let i = 1; i < pts.length; i++) c.lineTo(pts[i].x, pts[i].y);
+      c.stroke();
+      return;
+    }
+    // chalky textured stroke: base pass + light grain pass
+    c.globalAlpha = 0.85;
+    c.lineWidth = width;
+    c.beginPath();
+    c.moveTo(pts[0].x, pts[0].y);
+    for(let i = 1; i < pts.length; i++) c.lineTo(pts[i].x, pts[i].y);
+    c.stroke();
+
+    c.globalAlpha = 0.18;
+    c.lineWidth = Math.max(1, width * 0.5);
+    for(let i = 1; i < pts.length; i++){
+      const jitter = (Math.random() - 0.5) * width * 0.35;
+      c.beginPath();
+      c.moveTo(pts[i-1].x + jitter, pts[i-1].y + jitter);
+      c.lineTo(pts[i].x - jitter, pts[i].y - jitter);
+      c.stroke();
+    }
+    c.globalAlpha = 1;
+  }
+
+  function drawShape(c, s){
+    c.strokeStyle = s.color;
+    c.lineWidth = s.width;
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+    c.globalAlpha = 1;
+    c.beginPath();
+    if(s.type === 'line'){
+      c.moveTo(s.p1.x, s.p1.y);
+      c.lineTo(s.p2.x, s.p2.y);
+    } else if(s.type === 'rect'){
+      c.rect(s.x, s.y, s.w, s.h);
+    } else if(s.type === 'ellipse'){
+      c.ellipse(s.cx, s.cy, Math.max(Math.abs(s.rx), 1), Math.max(Math.abs(s.ry), 1), 0, 0, Math.PI * 2);
+    } else if(s.type === 'triangle'){
+      c.moveTo(s.pts[0].x, s.pts[0].y);
+      c.lineTo(s.pts[1].x, s.pts[1].y);
+      c.lineTo(s.pts[2].x, s.pts[2].y);
+      c.closePath();
+    }
+    c.stroke();
+  }
+
+  function renderStroke(c, s){
+    if(s.type === 'freehand'){
+      drawFreehand(c, s.points, s.color, s.width, true);
+    } else if(s.type === 'erase'){
+      drawFreehand(c, s.points, boardBg(), s.width, false);
+    } else {
+      drawShape(c, s);
+    }
+  }
+
+  function redrawAll(){
+    const rect = boardWrap.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    ctx.fillStyle = boardBg();
+    ctx.fillRect(0, 0, rect.width, rect.height);
+    for(const s of state.strokes) renderStroke(ctx, s);
+  }
+
+  // ---------------- pointer input ----------------
+  function getPos(e){
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    state.drawing = true;
+    const p = getPos(e);
+    state.startPt = p;
+    state.currentPoints = [p];
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if(!state.drawing) return;
+    const p = getPos(e);
+
+    if(state.tool === 'pen' || state.tool === 'eraser'){
+      state.currentPoints.push(p);
+      redrawAll();
+      drawFreehand(
+        ctx, state.currentPoints,
+        state.tool === 'eraser' ? boardBg() : state.color,
+        state.tool === 'eraser' ? state.width * 3 : state.width,
+        state.tool === 'pen'
+      );
+    } else {
+      // shape tools: rubber-band preview
+      redrawAll();
+      previewShape(state.tool, state.startPt, p);
+    }
+  });
+
+  function endStroke(e){
+    if(!state.drawing) return;
+    state.drawing = false;
+    const p = getPos(e);
+
+    if(state.tool === 'pen'){
+      const pts = state.currentPoints;
+      let shape = null;
+      if(state.snap) shape = recognizeShape(pts, state.color, state.width);
+      if(shape) state.strokes.push(shape);
+      else if(pts.length >= 2) state.strokes.push({ type: 'freehand', points: pts, color: state.color, width: state.width });
+      else if(pts.length === 1) state.strokes.push({ type: 'freehand', points: pts, color: state.color, width: state.width });
+    } else if(state.tool === 'eraser'){
+      const pts = state.currentPoints;
+      if(pts.length >= 1) state.strokes.push({ type: 'erase', points: pts, width: state.width * 3 });
+    } else {
+      const shape = finalizeShape(state.tool, state.startPt, p);
+      if(shape) state.strokes.push(shape);
+    }
+
+    state.currentPoints = [];
+    state.startPt = null;
+    redrawAll();
+  }
+
+  canvas.addEventListener('pointerup', endStroke);
+  canvas.addEventListener('pointercancel', endStroke);
+  canvas.addEventListener('pointerleave', (e) => { if(state.drawing) endStroke(e); });
+
+  function previewShape(tool, start, end){
+    const shape = finalizeShape(tool, start, end);
+    if(shape) drawShape(ctx, shape);
+  }
+
+  function finalizeShape(tool, start, end){
+    if(dist(start, end) < 2) return null;
+    if(tool === 'line'){
+      return { type: 'line', p1: start, p2: end, color: state.color, width: state.width };
+    }
+    if(tool === 'rect'){
+      const x = Math.min(start.x, end.x), y = Math.min(start.y, end.y);
+      const w = Math.abs(end.x - start.x), h = Math.abs(end.y - start.y);
+      return { type: 'rect', x, y, w, h, color: state.color, width: state.width };
+    }
+    if(tool === 'ellipse'){
+      const cx = (start.x + end.x) / 2, cy = (start.y + end.y) / 2;
+      return { type: 'ellipse', cx, cy, rx: Math.abs(end.x - start.x) / 2, ry: Math.abs(end.y - start.y) / 2, color: state.color, width: state.width };
+    }
+    if(tool === 'triangle'){
+      const x = Math.min(start.x, end.x), w = Math.abs(end.x - start.x);
+      const top = { x: x + w / 2, y: Math.min(start.y, end.y) };
+      const bl = { x: Math.min(start.x, end.x), y: Math.max(start.y, end.y) };
+      const br = { x: Math.max(start.x, end.x), y: Math.max(start.y, end.y) };
+      return { type: 'triangle', pts: [top, bl, br], color: state.color, width: state.width };
+    }
+    return null;
+  }
+
+  // ---------------- toolbar wiring ----------------
+  document.getElementById('toolGroup').addEventListener('click', (e) => {
+    const btn = e.target.closest('button.tool');
+    if(!btn) return;
+    document.querySelectorAll('#toolGroup .tool').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.tool = btn.dataset.tool;
+    canvas.style.cursor = state.tool === 'eraser' ? 'cell' : 'crosshair';
+  });
+
+  document.getElementById('colorGroup').addEventListener('click', (e) => {
+    const sw = e.target.closest('.swatch');
+    if(!sw) return;
+    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active');
+    state.color = getComputedStyle(sw).backgroundColor;
+  });
+
+  document.getElementById('widthRange').addEventListener('input', (e) => {
+    state.width = Number(e.target.value);
+  });
+
+  document.getElementById('snapToggle').addEventListener('change', (e) => {
+    state.snap = e.target.checked;
+  });
+
+  document.getElementById('undoBtn').addEventListener('click', () => {
+    state.strokes.pop();
+    redrawAll();
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    state.strokes = [];
+    redrawAll();
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z'){
+      e.preventDefault();
+      state.strokes.pop();
+      redrawAll();
+    }
+  });
+
+  // init
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>
