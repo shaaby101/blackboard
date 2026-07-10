@@ -81,6 +81,30 @@
   }
   .swatch.active{ box-shadow: 0 0 0 2px #000000, 0 0 0 3px #ffffff; }
 
+  .text-tool-wrap{ position:relative; display:flex; border-right:1px solid #ffffff; }
+  .text-tool-wrap button.tool{ border-right:1px solid #ffffff; }
+  .caret-btn{
+    width:26px; height:44px;
+    display:flex; align-items:center; justify-content:center; gap:3px;
+    background:#000000; border:none; color:#ffffff;
+    cursor:pointer; padding:0;
+  }
+  .caret-btn:hover{ background:#1a1a1a; }
+  .caret-swatch{
+    width:9px; height:9px; border-radius:50%;
+    border:1px solid #ffffff; flex-shrink:0;
+  }
+  .text-color-dropdown{
+    display:none;
+    position:absolute; top:100%; left:0;
+    background:#000000; border:1px solid #ffffff;
+    padding:9px 7px; gap:0;
+    flex-wrap:wrap; width:120px;
+    z-index:30;
+  }
+  .text-color-dropdown.open{ display:flex; }
+  .text-color-dropdown .swatch{ margin:3px 7px; }
+
   #widthRange{ width:80px; accent-color: #ffffff; margin: 0 10px; }
 
   .toggle-label{
@@ -157,6 +181,23 @@
       <button class="tool" data-tool="triangle" title="Triangle">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 4 L20 19 L4 19 Z"/></svg>
       </button>
+      <div class="text-tool-wrap">
+        <button class="tool" data-tool="text" title="Text">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="5" x2="20" y2="5"/><line x1="12" y1="5" x2="12" y2="19"/></svg>
+        </button>
+        <button class="caret-btn" id="textColorCaret" title="Text color">
+          <span class="caret-swatch" id="caretSwatch" style="background:var(--chalk-white)"></span>
+          <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="text-color-dropdown" id="textColorDropdown">
+          <div class="swatch active" style="background:var(--chalk-white)" data-color="var(--chalk-white)" title="White"></div>
+          <div class="swatch" style="background:var(--chalk-yellow)" data-color="var(--chalk-yellow)" title="Yellow"></div>
+          <div class="swatch" style="background:var(--chalk-coral)" data-color="var(--chalk-coral)" title="Coral"></div>
+          <div class="swatch" style="background:var(--chalk-sky)" data-color="var(--chalk-sky)" title="Sky"></div>
+          <div class="swatch" style="background:var(--chalk-sage)" data-color="var(--chalk-sage)" title="Sage"></div>
+          <div class="swatch" style="background:var(--chalk-pink)" data-color="var(--chalk-pink)" title="Pink"></div>
+        </div>
+      </div>
       <button class="tool" data-tool="eraser" title="Eraser">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 20H8l-6-6a2 2 0 0 1 0-2.8L13.6 2.6a2 2 0 0 1 2.8 0l5.6 5.6a2 2 0 0 1 0 2.8L14 19"/></svg>
       </button>
@@ -221,6 +262,7 @@
   const state = {
     tool: 'pen',
     color: getCss('--chalk-white'),
+    textColor: getCss('--chalk-white'),
     width: 4,
     snap: true,
     strokes: [],
@@ -427,6 +469,12 @@
       drawFreehand(c, s.points, s.color, s.width, true);
     } else if(s.type === 'erase'){
       drawFreehand(c, s.points, boardBg(), s.width, false);
+    } else if(s.type === 'text'){
+      c.globalAlpha = 1;
+      c.fillStyle = s.color;
+      c.font = `${s.size}px 'Helvetica Neue', Arial, sans-serif`;
+      c.textBaseline = 'alphabetic';
+      c.fillText(s.text, s.x, s.y);
     } else {
       drawShape(c, s);
     }
@@ -456,6 +504,7 @@
 
   canvas.addEventListener('pointermove', (e) => {
     if(!state.drawing) return;
+    if(state.tool === 'text') return;
     const p = getPos(e);
 
     if(state.tool === 'pen' || state.tool === 'eraser'){
@@ -478,6 +527,13 @@
     if(!state.drawing) return;
     state.drawing = false;
     const p = getPos(e);
+
+    if(state.tool === 'text'){
+      if(dist(state.startPt, p) < 6) openTextEditor(p.x, p.y);
+      state.currentPoints = [];
+      state.startPt = null;
+      return;
+    }
 
     if(state.tool === 'pen'){
       const pts = state.currentPoints;
@@ -532,6 +588,58 @@
     return null;
   }
 
+  // ---------------- text tool ----------------
+  function openTextEditor(x, y){
+    const existing = document.getElementById('textEditorInput');
+    if(existing) existing.remove();
+
+    const fontSize = 14 + state.width * 3;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'textEditorInput';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    Object.assign(input.style, {
+      position: 'absolute',
+      left: x + 'px',
+      top: (y - fontSize * 0.8) + 'px',
+      font: `${fontSize}px 'Helvetica Neue', Arial, sans-serif`,
+      color: state.textColor,
+      background: 'transparent',
+      border: '1px dashed #ffffff',
+      outline: 'none',
+      padding: '2px 4px',
+      minWidth: '80px',
+      zIndex: '50',
+    });
+    boardWrap.appendChild(input);
+    input.focus();
+
+    let done = false;
+    const commit = () => {
+      if(done) return;
+      done = true;
+      const text = input.value.trim();
+      if(text){
+        state.strokes.push({ type: 'text', x, y, text, color: state.textColor, size: fontSize });
+      }
+      input.remove();
+      redrawAll();
+    };
+    const cancel = () => {
+      if(done) return;
+      done = true;
+      input.remove();
+    };
+
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if(e.key === 'Enter'){ e.preventDefault(); commit(); }
+      else if(e.key === 'Escape'){ e.preventDefault(); cancel(); }
+    });
+    input.addEventListener('blur', commit);
+  }
+
   // ---------------- toolbar wiring ----------------
   document.getElementById('toolGroup').addEventListener('click', (e) => {
     const btn = e.target.closest('button.tool');
@@ -539,16 +647,36 @@
     document.querySelectorAll('#toolGroup .tool').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     state.tool = btn.dataset.tool;
-    canvas.style.cursor = state.tool === 'eraser' ? 'cell' : 'crosshair';
+    canvas.style.cursor = state.tool === 'eraser' ? 'cell' : (state.tool === 'text' ? 'text' : 'crosshair');
   });
 
   document.getElementById('colorGroup').addEventListener('click', (e) => {
     const sw = e.target.closest('.swatch');
     if(!sw) return;
-    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('#colorGroup .swatch').forEach(s => s.classList.remove('active'));
     sw.classList.add('active');
     state.color = getComputedStyle(sw).backgroundColor;
   });
+
+  const textColorCaret = document.getElementById('textColorCaret');
+  const textColorDropdown = document.getElementById('textColorDropdown');
+  const caretSwatch = document.getElementById('caretSwatch');
+
+  textColorCaret.addEventListener('click', (e) => {
+    e.stopPropagation();
+    textColorDropdown.classList.toggle('open');
+  });
+  textColorDropdown.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const sw = e.target.closest('.swatch');
+    if(!sw) return;
+    document.querySelectorAll('#textColorDropdown .swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active');
+    state.textColor = getComputedStyle(sw).backgroundColor;
+    caretSwatch.style.background = state.textColor;
+    textColorDropdown.classList.remove('open');
+  });
+  document.addEventListener('click', () => textColorDropdown.classList.remove('open'));
 
   document.getElementById('widthRange').addEventListener('input', (e) => {
     state.width = Number(e.target.value);
