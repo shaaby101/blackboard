@@ -74,15 +74,15 @@
 
   .popover{
     display:none;
-    position:absolute; top:calc(100% + 10px); left:50%; transform:translateX(-50%);
+    position:fixed; top:0; left:0;
     background:rgba(14,14,14,0.97);
     border:1px solid rgba(255,255,255,0.22);
     border-radius:12px;
     padding:14px;
-    min-width:190px;
+    width:190px;
     flex-direction:column; gap:12px;
     box-shadow: 0 10px 28px rgba(0,0,0,0.5);
-    z-index:30;
+    z-index:100;
   }
   .popover.open{ display:flex; }
   .popover-row{ display:flex; align-items:center; gap:9px; }
@@ -90,12 +90,26 @@
   .popover-label{
     font-size:11px; letter-spacing:0.4px; text-transform:uppercase; color:#999;
   }
-  #widthRange{ flex:1; accent-color:#ffffff; }
+  #widthRange, #brightRange{ flex:1; accent-color:#ffffff; }
   .toggle-row{
     display:flex; align-items:center; gap:8px;
     font-size:12px; cursor:pointer; user-select:none; color:#ddd;
   }
   .toggle-row input{ accent-color:#ffffff; width:14px; height:14px; cursor:pointer; }
+
+  .wheel-wrap{
+    position:relative; width:130px; height:130px; margin:0 auto;
+    touch-action:none;
+  }
+  #colorWheelCanvas{ border-radius:50%; cursor:crosshair; display:block; }
+  .wheel-pointer{
+    position:absolute; width:14px; height:14px; border-radius:50%;
+    border:2px solid #ffffff; box-shadow:0 0 0 1px rgba(0,0,0,0.6), 0 0 4px rgba(0,0,0,0.5);
+    transform:translate(-50%,-50%);
+    pointer-events:none;
+    top:50%; left:50%;
+  }
+  #hexReadout{ font-size:11px; color:#999; letter-spacing:0.3px; }
 
   /* ---------- board ---------- */
   #boardWrap{
@@ -252,29 +266,9 @@
 
       <div class="tsep"></div>
 
-      <div style="position:relative;">
-        <button class="tbtn" id="styleBtn" title="Color, chalk size &amp; snapping">
-          <span class="style-swatch-dot" id="styleSwatchDot" style="background:var(--chalk-white)"></span>
-        </button>
-        <div class="popover" id="stylePopover">
-          <div class="popover-row popover-swatches" id="colorGroup">
-            <div class="swatch active" style="background:var(--chalk-white)" data-color="var(--chalk-white)" title="White"></div>
-            <div class="swatch" style="background:var(--chalk-yellow)" data-color="var(--chalk-yellow)" title="Yellow"></div>
-            <div class="swatch" style="background:var(--chalk-coral)" data-color="var(--chalk-coral)" title="Coral"></div>
-            <div class="swatch" style="background:var(--chalk-sky)" data-color="var(--chalk-sky)" title="Sky"></div>
-            <div class="swatch" style="background:var(--chalk-sage)" data-color="var(--chalk-sage)" title="Sage"></div>
-            <div class="swatch" style="background:var(--chalk-pink)" data-color="var(--chalk-pink)" title="Pink"></div>
-          </div>
-          <div class="popover-row">
-            <span class="popover-label">Size</span>
-            <input type="range" id="widthRange" min="2" max="14" value="4">
-          </div>
-          <label class="toggle-row">
-            <input type="checkbox" id="snapToggle" checked>
-            Snap chalk to shapes
-          </label>
-        </div>
-      </div>
+      <button class="tbtn" id="styleBtn" title="Color, chalk size &amp; snapping">
+        <span class="style-swatch-dot" id="styleSwatchDot" style="background:var(--chalk-white)"></span>
+      </button>
 
       <div class="tsep"></div>
 
@@ -329,6 +323,37 @@
     </div>
   </div>
 
+</div>
+
+<div class="popover" id="stylePopover">
+  <div class="popover-row" style="justify-content:space-between;">
+    <span class="popover-label">Color</span>
+    <span id="hexReadout">#FFFFFF</span>
+  </div>
+  <div class="wheel-wrap">
+    <canvas id="colorWheelCanvas" width="130" height="130"></canvas>
+    <div class="wheel-pointer" id="wheelPointer"></div>
+  </div>
+  <div class="popover-row">
+    <span class="popover-label">Bright</span>
+    <input type="range" id="brightRange" min="25" max="100" value="100">
+  </div>
+  <div class="popover-row popover-swatches" id="colorGroup">
+    <div class="swatch active" style="background:var(--chalk-white)" data-color="var(--chalk-white)" title="White"></div>
+    <div class="swatch" style="background:var(--chalk-yellow)" data-color="var(--chalk-yellow)" title="Yellow"></div>
+    <div class="swatch" style="background:var(--chalk-coral)" data-color="var(--chalk-coral)" title="Coral"></div>
+    <div class="swatch" style="background:var(--chalk-sky)" data-color="var(--chalk-sky)" title="Sky"></div>
+    <div class="swatch" style="background:var(--chalk-sage)" data-color="var(--chalk-sage)" title="Sage"></div>
+    <div class="swatch" style="background:var(--chalk-pink)" data-color="var(--chalk-pink)" title="Pink"></div>
+  </div>
+  <div class="popover-row">
+    <span class="popover-label">Size</span>
+    <input type="range" id="widthRange" min="2" max="14" value="4">
+  </div>
+  <label class="toggle-row">
+    <input type="checkbox" id="snapToggle" checked>
+    Snap chalk to shapes
+  </label>
 </div>
 
 <script>
@@ -834,24 +859,168 @@
   });
 
   const styleSwatchDot = document.getElementById('styleSwatchDot');
+  const hexReadout = document.getElementById('hexReadout');
+
+  // ---------------- HSV color wheel ----------------
+  const wheelCanvas = document.getElementById('colorWheelCanvas');
+  const wheelCtx = wheelCanvas.getContext('2d');
+  const wheelPointer = document.getElementById('wheelPointer');
+  const brightRange = document.getElementById('brightRange');
+  const wheelSize = wheelCanvas.width; // square canvas
+  const wheelRadius = wheelSize / 2;
+  let curHue = 0, curSat = 0, curVal = 1; // hue 0-360, sat/val 0-1
+
+  function hsvToRgb(h, s, v){
+    h = ((h % 360) + 360) % 360;
+    const c = v * s;
+    const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    const m = v - c;
+    let r=0,g=0,b=0;
+    if(h < 60){ r=c; g=x; b=0; }
+    else if(h < 120){ r=x; g=c; b=0; }
+    else if(h < 180){ r=0; g=c; b=x; }
+    else if(h < 240){ r=0; g=x; b=c; }
+    else if(h < 300){ r=x; g=0; b=c; }
+    else { r=c; g=0; b=x; }
+    return [Math.round((r+m)*255), Math.round((g+m)*255), Math.round((b+m)*255)];
+  }
+
+  function rgbToHsv(r, g, b){
+    r/=255; g/=255; b/=255;
+    const max = Math.max(r,g,b), min = Math.min(r,g,b);
+    const d = max - min;
+    let h = 0;
+    if(d !== 0){
+      if(max === r) h = 60 * (((g-b)/d) % 6);
+      else if(max === g) h = 60 * ((b-r)/d + 2);
+      else h = 60 * ((r-g)/d + 4);
+    }
+    if(h < 0) h += 360;
+    const s = max === 0 ? 0 : d / max;
+    const v = max;
+    return [h, s, v];
+  }
+
+  function rgbToHex(r, g, b){
+    return '#' + [r,g,b].map(n => n.toString(16).padStart(2,'0')).join('').toUpperCase();
+  }
+
+  function drawWheel(){
+    const img = wheelCtx.createImageData(wheelSize, wheelSize);
+    for(let y = 0; y < wheelSize; y++){
+      for(let x = 0; x < wheelSize; x++){
+        const dx = x - wheelRadius, dy = y - wheelRadius;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const idx = (y * wheelSize + x) * 4;
+        if(dist <= wheelRadius){
+          const hue = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+          const sat = Math.min(1, dist / wheelRadius);
+          const [r,g,b] = hsvToRgb(hue, sat, curVal);
+          img.data[idx] = r; img.data[idx+1] = g; img.data[idx+2] = b; img.data[idx+3] = 255;
+        } else {
+          img.data[idx+3] = 0;
+        }
+      }
+    }
+    wheelCtx.putImageData(img, 0, 0);
+  }
+
+  function updatePointerFromHueSat(){
+    const rad = curHue * Math.PI / 180;
+    const dist = curSat * wheelRadius;
+    wheelPointer.style.left = (wheelRadius + Math.cos(rad) * dist) + 'px';
+    wheelPointer.style.top = (wheelRadius + Math.sin(rad) * dist) + 'px';
+  }
+
+  function applyColor(updateActiveSwatch){
+    const [r,g,b] = hsvToRgb(curHue, curSat, curVal);
+    state.color = `rgb(${r}, ${g}, ${b})`;
+    styleSwatchDot.style.background = state.color;
+    hexReadout.textContent = rgbToHex(r,g,b);
+    if(updateActiveSwatch !== false){
+      document.querySelectorAll('#colorGroup .swatch').forEach(s => s.classList.remove('active'));
+    }
+  }
+
+  function setColorFromHueSat(hue, sat, val){
+    curHue = hue; curSat = sat;
+    if(val != null) curVal = val;
+    updatePointerFromHueSat();
+    applyColor();
+  }
+
+  function wheelPointFromEvent(e){
+    const rect = wheelCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    const dx = x - wheelRadius, dy = y - wheelRadius;
+    const dist = Math.min(wheelRadius, Math.sqrt(dx*dx + dy*dy));
+    const hue = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+    const sat = dist / wheelRadius;
+    return { hue, sat };
+  }
+
+  let wheelDragging = false;
+  wheelCanvas.addEventListener('pointerdown', (e) => {
+    wheelDragging = true;
+    wheelCanvas.setPointerCapture(e.pointerId);
+    const { hue, sat } = wheelPointFromEvent(e);
+    setColorFromHueSat(hue, sat);
+  });
+  wheelCanvas.addEventListener('pointermove', (e) => {
+    if(!wheelDragging) return;
+    const { hue, sat } = wheelPointFromEvent(e);
+    setColorFromHueSat(hue, sat);
+  });
+  wheelCanvas.addEventListener('pointerup', () => { wheelDragging = false; });
+  wheelCanvas.addEventListener('pointercancel', () => { wheelDragging = false; });
+
+  brightRange.addEventListener('input', (e) => {
+    curVal = Number(e.target.value) / 100;
+    drawWheel();
+    applyColor();
+  });
+
+  drawWheel();
+  updatePointerFromHueSat();
+  applyColor();
 
   document.getElementById('colorGroup').addEventListener('click', (e) => {
     const sw = e.target.closest('.swatch');
     if(!sw) return;
     document.querySelectorAll('#colorGroup .swatch').forEach(s => s.classList.remove('active'));
     sw.classList.add('active');
-    state.color = getComputedStyle(sw).backgroundColor;
-    styleSwatchDot.style.background = state.color;
+    const rgb = getComputedStyle(sw).backgroundColor.match(/\d+/g).map(Number);
+    const [h, s, v] = rgbToHsv(rgb[0], rgb[1], rgb[2]);
+    curHue = h; curSat = s; curVal = v;
+    brightRange.value = Math.round(v * 100);
+    drawWheel();
+    updatePointerFromHueSat();
+    applyColor(false);
   });
 
+  // ---------------- popover open/close (fixed positioning, escapes toolbar clipping) ----------------
   const styleBtn = document.getElementById('styleBtn');
   const stylePopover = document.getElementById('stylePopover');
   styleBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    stylePopover.classList.toggle('open');
+    const isOpen = stylePopover.classList.contains('open');
+    if(isOpen){
+      stylePopover.classList.remove('open');
+      return;
+    }
+    const rect = styleBtn.getBoundingClientRect();
+    stylePopover.classList.add('open');
+    const popRect = stylePopover.getBoundingClientRect();
+    let left = rect.left + rect.width / 2 - popRect.width / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - popRect.width - 8));
+    let top = rect.bottom + 10;
+    if(top + popRect.height > window.innerHeight - 8) top = rect.top - popRect.height - 10;
+    stylePopover.style.left = left + 'px';
+    stylePopover.style.top = top + 'px';
   });
   stylePopover.addEventListener('click', (e) => e.stopPropagation());
   document.addEventListener('click', () => stylePopover.classList.remove('open'));
+  window.addEventListener('resize', () => stylePopover.classList.remove('open'));
 
   document.getElementById('widthRange').addEventListener('input', (e) => {
     state.width = Number(e.target.value);
